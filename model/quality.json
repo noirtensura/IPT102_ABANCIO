@@ -1,0 +1,64 @@
+{
+  "thresholds": {
+    "min_side": 96,
+    "max_blur": 0.783,
+    "min_brightness": 25.0,
+    "max_brightness": 235.0,
+    "min_contrast": 6.5,
+    "min_skin_ratio": 0.0192,
+    "max_clipped_ratio": 0.55
+  },
+  "calibrated_on_train_images": 3500,
+  "real_train_photos_rejected": 19,
+  "real_train_photo_rejection_rate": 0.0054285714285714284,
+  "synthetic_degraded_rejection_rate": {
+    "gaussian_blur_sigma3.5": 0.6059850374064838,
+    "motion_blur_17px": 0.970074812967581,
+    "underexposed_x0.12": 1.0,
+    "blank_gray": 1.0
+  },
+  "real_metric_percentiles": {
+    "min_side": {
+      "0": 96.0,
+      "0.5": 102.99,
+      "50": 474.0,
+      "99.5": 980.2,
+      "100": 2320.0
+    },
+    "blur": {
+      "0": 0.2054,
+      "0.5": 0.2452,
+      "50": 0.4009,
+      "99.5": 0.7103,
+      "100": 0.8634
+    },
+    "brightness": {
+      "0": 26.41,
+      "0.5": 40.785,
+      "50": 117.18,
+      "99.5": 197.4455,
+      "100": 230.7
+    },
+    "contrast": {
+      "0": 8.63,
+      "0.5": 11.66,
+      "50": 40.295,
+      "99.5": 83.9754,
+      "100": 94.79
+    },
+    "skin_ratio": {
+      "0": 0.0,
+      "0.5": 0.0383,
+      "50": 0.9517,
+      "99.5": 1.0,
+      "100": 1.0
+    },
+    "clipped_ratio": {
+      "0": 0.0,
+      "0.5": 0.0,
+      "50": 0.0,
+      "99.5": 0.3725,
+      "100": 0.7239
+    }
+  }
+}

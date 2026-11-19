@@ -1,0 +1,17 @@
+Options -Indexes
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /IPT_ABANCIO/
+
+    # Redirect scan.py requests to the PHP frontend entry point
+    RewriteRule ^scan\.py$ scan.php [R=302,L,NC]
+
+    # Legacy scanner URLs
+    RewriteRule ^static/(index|upload)\.html$ scan.php [R=302,L,NC]
+
+    # Block direct browser access to internal backend code, models, datasets, and config files
+    RewriteRule ^(backend|includes|model|datasets|train|val|test|build|tests|notebooks|templates|\.venv)(/|$) - [F,L,NC]
+    RewriteRule ^(requirements(-train)?\.txt|start_backend\.bat|README\.md|LICENSE|\.gitignore)$ - [F,L,NC]
+    RewriteRule \.py$ - [F,L,NC]
+</IfModule>

@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}Analysis Result | Skin Disease Detection{% endblock %}
+{% block page_class %}analysis-theme{% endblock %}
+{% block header %}{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/results.js') }}" defer></script>
+{% endblock %}
+{% block body %}
+<main class="analysis-page shell">
+    <header class="analysis-heading">
+        {{ icon('sparkles') }}
+        <div>
+            <h1>Analysis Result</h1>
+            <p>AI-powered preliminary analysis of your uploaded skin photo.</p>
+        </div>
+    </header>
+
+    <div class="analysis-layout">
+        <section class="analysis-panel analysis-image" aria-labelledby="result-preview-title">
+            <h2 id="result-preview-title" class="analysis-section-title">{{ icon('photo') }} Analyzed Image</h2>
+            <figure class="result-figure">
+                <div class="result-photo" style="--photo-ratio: {{ photo_ratio }}">
+                    <img src="data:image/jpeg;base64,{{ image_preview }}" alt="Uploaded skin photo">
+                </div>
+            </figure>
+            <a class="secondary-button analysis-another" href="{{ url_for('index') }}">{{ icon('refresh') }} Analyze Another</a>
+        </section>
+
+        <section class="analysis-panel analysis-report" aria-labelledby="result-title">
+            <header class="prediction-banner">
+                <span class="prediction-icon">{{ icon('label') }}</span>
+                <div>
+                    <p>Preliminary Analysis</p>
+                    <h2 class="prediction" id="result-title">{% if prediction == 'Uncertain' %}No reliable match{% else %}Possible: {{ prediction }}{% endif %}</h2>
+                    {% if specific_condition and specific_condition.name %}
+                    <p class="specific-pattern">Closest specific pattern: <strong>{{ specific_condition.name }}</strong></p>
+                    {% endif %}
+                </div>
+            </header>
+
+            <section class="confidence-strip" aria-labelledby="confidence-title">
+                <div class="confidence-label">
+                    <h3 id="confidence-title">{{ 'Highest model score' if prediction == 'Uncertain' else 'Model confidence' }}</h3>
+                    <button id="confidence-info" class="confidence-info" type="button" aria-label="About model confidence"
+                            aria-haspopup="dialog" aria-controls="confidence-dialog">{{ icon('info') }}</button>
+                </div>
+                <div class="confidence-gauge">
+                    <meter class="confidence-meter" min="0" max="100" value="{{ score }}" aria-labelledby="confidence-title"
+                           aria-valuetext="{{ score }} percent out of 100, {{ band|lower }} range"></meter>
+                    <div class="confidence-scale" aria-hidden="true"><span>0%</span><span>100% max</span></div>
+                </div>
+                <div class="confidence-chip"><strong>{{ '%.1f'|format(score) }}%</strong><span class="confidence-band">{{ band }}</span></div>
+            </section>
+
+            {% if top_categories and top_categories|length >= 2 %}
+            <section class="differential-strip" aria-labelledby="differential-title">
+                <h3 id="differential-title" class="differential-heading">Top differential possibilities</h3>
+                <ol class="differential-list">
+                    {% for item in top_categories[:3] %}
+                    <li class="differential-item">
+                        <span class="differential-name">{{ item.name }}</span>
+                        <span class="differential-bar" aria-hidden="true"><span style="width: {{ [100, [0, item.score]|max]|min }}%"></span></span>
+                        <strong class="differential-score">{{ '%.1f'|format(item.score) }}%</strong>
+                    </li>
+                    {% endfor %}
+                </ol>
+                {% if top_specific %}
+                <p class="specific-hints"><strong>Specific visual matches:</strong>
+                    {% for spec in top_specific[:3] %}{{ spec.name }} ({{ '%.1f'|format(spec.score) }}%){% if not loop.last %} · {% endif %}{% endfor %}
+                </p>
+                {% endif %}
+            </section>
+            {% endif %}
+
+            <div class="analysis-details">
+                <section aria-labelledby="condition-title">
+                    <h3 id="condition-title" class="analysis-section-title">{{ icon('document') }} {{ 'About this result' if prediction == 'Uncertain' else 'About this condition' }}</h3>
+                    {% if appearance %}
+                    <p>{{ appearance }} <a href="{{ reference }}" rel="noreferrer">Condition reference</a></p>
+                    {% elif prediction != 'Uncertain' %}
+                    <p>The model selected this category from the conditions it was trained to recognize.</p>
+                    {% endif %}
+                    <p class="analysis-evidence"><strong>{{ 'Why no match' if prediction == 'Uncertain' else 'Why this label' }}</strong> {{ explanation }}</p>
+                </section>
+
+                <section aria-labelledby="care-title">
+                    <h3 id="care-title" class="analysis-section-title">{{ icon('shield') }} General Care Tips</h3>
+                    <ul class="care-list">
+                        <li>{{ icon('check') }}<a href="https://www.aad.org/public/everyday-care/skin-care-secrets/routine/healthier-looking-skin" rel="noreferrer">Cleanse gently and avoid scrubbing.</a></li>
+                        <li>{{ icon('check') }}<a href="https://www.aad.org/public/diseases/skin-cancer/how-to-prevent" rel="noreferrer">Protect exposed skin from the sun.</a></li>
+                        <li>{{ icon('check') }}<a href="https://www.aad.org/public/diseases/skin-cancer/check-skin" rel="noreferrer">Have a new, changing, or bleeding spot checked.</a></li>
+                    </ul>
+                </section>
+            </div>
+
+            <aside class="medical-notice" aria-labelledby="disclaimer-title">
+                {{ icon('shield') }}
+                <h3 id="disclaimer-title">Important disclaimer</h3>
+                <p><strong>A diagnosis requires a clinical exam.</strong> Ask a qualified healthcare professional for evaluation and treatment advice.</p>
+            </aside>
+
+            <footer class="analysis-actions">
+                <a class="secondary-button" id="download-result" download="skin-analysis.txt" href="data:text/plain;charset=utf-8;base64,{{ record.report }}">{{ icon('download') }} Download Result</a>
+                <a class="primary-button" id="view-results" href="{{ url_for('results_history') }}">{{ icon('history') }} View Results</a>
+            </footer>
+            <p id="history-save-status" class="history-status" role="status" hidden></p>
+        </section>
+    </div>
+
+    <dialog id="confidence-dialog" class="camera-dialog confidence-dialog" aria-labelledby="confidence-dialog-title">
+        <h2 id="confidence-dialog-title">About model confidence</h2>
+        <p>This score shows how strongly the model favored its leading category. The scale runs from 0% to 100%.</p>
+        <dl>
+            <div><dt>Low</dt><dd>Below 50%</dd></div>
+            <div><dt>Moderate</dt><dd>50% to 79.9%</dd></div>
+            <div><dt>High</dt><dd>80% to 100%</dd></div>
+        </dl>
+        <p>A diagnosis requires clinical assessment at any score.</p>
+        <form method="dialog"><button class="secondary-button" autofocus>Close</button></form>
+    </dialog>
+    <script type="application/json" id="analysis-record">{{ record|tojson }}</script>
+</main>
+{% endblock %}

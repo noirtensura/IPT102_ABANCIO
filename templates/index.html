@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block header_actions %}
+<a class="results-link" href="{{ url_for('results_history') }}">{{ icon('history') }} View Results</a>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/scanner.js') }}" defer></script>
+{% endblock %}
+{% block body %}
+<main class="shell">
+    <form class="workspace" action="{{ url_for('upload_file') }}" method="post" enctype="multipart/form-data">
+        <section class="source-panel" aria-labelledby="scan-title">
+            <h1 id="scan-title">Add a skin photo</h1>
+            <input id="skin-photo" type="file" name="file" accept="image/*,.jpg,.jpeg,.png,.webp,.gif,.bmp,.tif,.tiff,.avif,.ico,.jfif,.heic,.heif" hidden>
+            <div class="source-buttons">
+                <button class="source-button" id="choose-photo" type="button">
+                    <span class="source-icon">{{ icon('upload') }}</span>
+                    <span class="source-label"><strong>Upload Image</strong><span>Choose any image file</span></span>
+                    <span class="source-next">{{ icon('next') }}</span>
+                </button>
+                <button class="source-button" id="open-camera" type="button">
+                    <span class="source-icon">{{ icon('camera') }}</span>
+                    <span class="source-label"><strong>Open Camera</strong><span>Take a photo with your device</span></span>
+                    <span class="source-next">{{ icon('next') }}</span>
+                </button>
+            </div>
+            <p class="lighting-tip">{{ icon('sun') }}<span>Use even lighting and keep the area in focus.</span></p>
+            <p class="notice" id="scanner-message" role="status"{% if not upload_error %} hidden{% endif %}>{{ upload_error|default('') }}</p>
+        </section>
+
+        <section class="preview-panel" aria-labelledby="preview-title">
+            <div class="preview-heading">
+                <h2 id="preview-title">Photo preview</h2>
+                <button class="icon-button" id="remove-photo" type="button" aria-label="Remove photo" title="Remove photo">{{ icon('trash') }}</button>
+            </div>
+            <figure class="photo-frame">
+                <img id="photo-preview" class="example-photo" src="{{ url_for('static', filename='images/example-skin-photo.png') }}"
+                     alt="Example forearm photo" width="1536" height="1024">
+                <figcaption class="example-label" id="example-label">Example photo</figcaption>
+                <div class="empty-photo" id="empty-photo" hidden>
+                    {{ icon('photo') }}<p>Choose or take a photo to preview it.</p>
+                </div>
+            </figure>
+            <button class="primary-button" id="check-image" type="submit" disabled>
+                Check Image {{ icon('arrow') }}
+            </button>
+        </section>
+    </form>
+
+    <dialog class="camera-dialog" id="camera-dialog" aria-labelledby="camera-title">
+        <div class="preview-heading">
+            <h2 id="camera-title">Take a photo</h2>
+            <form method="dialog">
+                <button class="icon-button" aria-label="Close camera" title="Close camera">{{ icon('close') }}</button>
+            </form>
+        </div>
+        <video id="camera-video" autoplay muted playsinline hidden></video>
+        <p class="notice" id="camera-message" role="status"></p>
+        <button class="primary-button" id="capture-photo" type="button" disabled>Take Photo {{ icon('camera') }}</button>
+    </dialog>
+</main>
+{% endblock %}

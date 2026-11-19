@@ -1,0 +1,126 @@
+<?php
+declare(strict_types=1);
+
+function e(?string $value): string
+{
+    return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+}
+
+function svg_icon(string $name): string
+{
+    return '<svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-' . e($name) . '"></use></svg>';
+}
+
+/**
+ * @param array{
+ *   title?: string,
+ *   page_class?: string,
+ *   scripts?: list<string>,
+ *   show_header?: bool,
+ *   header_actions?: string
+ * } $options
+ */
+function render_page_start(array $options = []): void
+{
+    $title = $options['title'] ?? 'Skin Disease Detection';
+    $pageClass = $options['page_class'] ?? '';
+    $scripts = $options['scripts'] ?? [];
+    $showHeader = $options['show_header'] ?? true;
+    $headerActions = $options['header_actions'] ?? '';
+    ?>
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title><?= e($title) ?></title>
+    <link rel="stylesheet" href="static/css/scanner.css">
+<?php foreach ($scripts as $script): ?>
+    <script src="<?= e($script) ?>" defer></script>
+<?php endforeach; ?>
+</head>
+<body class="<?= e($pageClass) ?>">
+    <svg class="icon-definitions" width="0" height="0" aria-hidden="true" focusable="false">
+        <defs>
+            <symbol id="icon-shutter" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="11.5" fill="currentColor"/>
+                <path d="M10 0.6 7 10.4M19 2.8l-9.8 4.5M23.3 10.9 13 7.1M18.9 21l-2.7-10.7M9 23.1l7.1-8.1M1.3 16l10.8 1.5M2.9 5.4l4.6 9.4" stroke="var(--paper)" stroke-width=".9"/>
+                <path d="m7.4 10.1 2.2-3 3.6-.1 3.3 3 .1 4-3.1 3.1-3.8-.3-2.2-2.7Z" fill="var(--paper)"/>
+            </symbol>
+            <symbol id="icon-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 16V2.8m-5.3 5.3L12 2.8l5.3 5.3M2.4 15.2V19a2.1 2.1 0 0 0 2.1 2.1h15a2.1 2.1 0 0 0 2.1-2.1v-3.8"/>
+            </symbol>
+            <symbol id="icon-camera" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M8 6.2 9.5 3.7c.3-.5.7-.7 1.3-.7h2.4c.6 0 1 .2 1.3.7L16 6.2h4a2.8 2.8 0 0 1 2.8 2.8v9.5a2.8 2.8 0 0 1-2.8 2.8H4a2.8 2.8 0 0 1-2.8-2.8V9A2.8 2.8 0 0 1 4 6.2Z"/>
+                <circle cx="12" cy="13.5" r="4.1"/>
+            </symbol>
+            <symbol id="icon-next" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m8 4 8 8-8 8"/>
+            </symbol>
+            <symbol id="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round">
+                <circle cx="12" cy="12" r="4.8"/>
+                <path d="M12 1v2.5m0 17V23M1 12h2.5m17 0H23M4.2 4.2 6 6m12 12 1.8 1.8M4.2 19.8 6 18M18 6l1.8-1.8"/>
+            </symbol>
+            <symbol id="icon-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3.7 5.9h16.6M8.8 5.9V4c0-.7.5-1.2 1.2-1.2h4c.7 0 1.2.5 1.2 1.2v1.9m2.8 0-.7 13.2a1.9 1.9 0 0 1-1.9 1.8H8.6a1.9 1.9 0 0 1-1.9-1.8L6 5.9m4.1 4.4v6.8m3.8-6.8v6.8"/>
+            </symbol>
+            <symbol id="icon-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.35" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3.2 12H21m-8-8 8 8-8 8"/>
+            </symbol>
+            <symbol id="icon-photo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2.3" y="3.2" width="19.4" height="17.6" rx="2"/>
+                <circle cx="8" cy="9" r="1.5"/>
+                <path d="m3 17 5-4 4 3 4-5 5 5"/>
+            </symbol>
+            <symbol id="icon-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <path d="m6 6 12 12m0-12L6 18"/>
+            </symbol>
+            <symbol id="icon-sparkles" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3c.8 6.1 2.9 8.2 9 9-6.1.8-8.2 2.9-9 9-.8-6.1-2.9-8.2-9-9 6.1-.8 8.2-2.9 9-9ZM4 2v4M2 4h4m14 13v4m-2-2h4"/>
+            </symbol>
+            <symbol id="icon-label" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 11 11 3h6l4 4v6l-8 8H3zM15.5 8h.01M11 11h.01m3 3h.01M8 15h.01"/>
+            </symbol>
+            <symbol id="icon-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                <circle cx="12" cy="12" r="9"/>
+                <path d="M12 11v5m0-8h.01"/>
+            </symbol>
+            <symbol id="icon-document" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M6 3h8l5 5v13H5V3zm8 0v5h5M8 12h8m-8 4h5"/>
+            </symbol>
+            <symbol id="icon-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2 3.5 5.5v5.7c0 5.1 3.5 8.9 8.5 11 5-2.1 8.5-5.9 8.5-11V5.5zM12 8v7m-3.5-3.5h7"/>
+            </symbol>
+            <symbol id="icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="9"/>
+                <path d="m8 12 2.6 2.6 5.4-5.4"/>
+            </symbol>
+            <symbol id="icon-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 4v5h-5M4 20v-5h5m-4-5a7.5 7.5 0 0 1 12.8-5.3L20 9M4 15l2.2 4.3A7.5 7.5 0 0 0 19 14"/>
+            </symbol>
+            <symbol id="icon-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3v13m-5-5 5 5 5-5M3 16v5h18v-5"/>
+            </symbol>
+            <symbol id="icon-history" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 4v6h6M3.5 10a8.5 8.5 0 1 1 1.7 7.3M12 7v5l3 2"/>
+            </symbol>
+        </defs>
+    </svg>
+<?php if ($showHeader): ?>
+    <header class="site-header shell">
+        <a class="brand" href="scan.php">
+            <?= svg_icon('shutter') ?><span>Skin Disease Detection</span>
+        </a>
+        <?= $headerActions ?>
+    </header>
+<?php endif; ?>
+<?php
+}
+
+function render_page_end(): void
+{
+    ?>
+</body>
+</html>
+<?php
+}

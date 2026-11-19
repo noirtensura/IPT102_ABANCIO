@@ -1,0 +1,42 @@
+<?php
+declare(strict_types=1);
+
+require_once __DIR__ . '/includes/layout.php';
+
+render_page_start([
+    'title' => 'Saved Results | Skin Disease Detection',
+    'scripts' => ['static/js/results.js'],
+]);
+?>
+<main class="shell history-page">
+    <header class="history-heading">
+        <div>
+            <h1>Saved results</h1>
+            <p>This tab’s session keeps up to 20 result summaries.</p>
+        </div>
+        <a class="primary-button" href="scan.php">Analyze Another <?= svg_icon('arrow') ?></a>
+    </header>
+    <section class="history-panel" aria-label="Analysis history">
+        <p id="history-status" role="status" tabindex="-1"></p>
+        <noscript><p>Enable JavaScript to open results saved in this tab.</p></noscript>
+        <ol class="history-list" id="history-list"></ol>
+        <template id="history-item-template">
+            <li class="history-item">
+                <h2></h2>
+                <p class="history-confidence"></p>
+                <time hidden></time>
+                <details>
+                    <summary>View analysis</summary>
+                    <p class="history-explanation"></p>
+                    <p class="history-appearance" hidden></p>
+                </details>
+                <div class="history-actions">
+                    <a class="secondary-button" download="skin-analysis.txt">Download Result</a>
+                    <button class="secondary-button" type="button">Remove</button>
+                </div>
+            </li>
+        </template>
+    </section>
+</main>
+<?php
+render_page_end();
