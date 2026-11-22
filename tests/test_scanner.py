@@ -145,15 +145,50 @@ class ScannerTest(TestCase):
             )
             self.assertEqual(scene.status_code, 400)
             self.assertIn("Could not verify a close-up skin photo", scene.get_json()["error"])
-            with patch("backend.quality.cv2.CascadeClassifier") as cascade:
-                cascade.return_value.empty.return_value = False
-                cascade.return_value.detectMultiScale.return_value = [(30, 20, 80, 80)]
+            with patch("backend.quality._whole_face_visible", return_value=True):
                 portrait = self.client.post(
                     "/uploaded", data={"file": (BytesIO(self.sample_path.read_bytes()), "portrait.jpg")}
                 )
             self.assertEqual(portrait.status_code, 400)
             self.assertIn(b"This looks like a full-face photo", portrait.data)
+            # Without the YuNet model file the Haar cascade remains the fallback face check.
+            with patch("backend.quality._whole_face_visible", return_value=None), patch(
+                "backend.quality.cv2.CascadeClassifier"
+            ) as cascade:
+                cascade.return_value.empty.return_value = False
+                cascade.return_value.detectMultiScale.return_value = [(30, 20, 80, 80)]
+                fallback = self.client.post(
+                    "/uploaded", data={"file": (BytesIO(self.sample_path.read_bytes()), "portrait.jpg")}
+                )
+            self.assertEqual(fallback.status_code, 400)
+            self.assertIn(b"This looks like a full-face photo", fallback.data)
             predict.assert_not_called()
+
+    def test_whole_face_rule_passes_close_ups_and_flags_faces_fully_in_frame(self):
+        from backend import quality
+
+        # The bundled detector loads and finds no face in the lesion close-ups shipped as samples.
+        for name in ("1.jpg", "5.jpg"):
+            with self.subTest(sample=name):
+                view = quality._analysis_view(cv2.imread(str(PROJECT_ROOT / "samples" / name)))
+                self.assertIs(quality._whole_face_visible(view), False)
+
+        view = np.full((400, 300, 3), 128, dtype=np.uint8)
+
+        def detection(x, y, w, h, score, points):
+            row = np.array([[x, y, w, h, *np.ravel(points), score]], dtype=np.float32)
+            detector = patch("backend.quality.cv2.FaceDetectorYN").start()
+            detector.create.return_value.detect.return_value = (1, row)
+            self.addCleanup(patch.stopall)
+            return quality._whole_face_visible(view)
+
+        whole = [(110, 150), (190, 150), (150, 200), (120, 250), (180, 250)]
+        self.assertTrue(detection(70, 90, 160, 220, 0.93, whole))
+        # Low confidence, a small face in the background, and a face cut off by the frame are not full-face photos.
+        self.assertFalse(detection(70, 90, 160, 220, 0.60, whole))
+        self.assertFalse(detection(120, 150, 50, 60, 0.93, [(135, 170), (155, 170), (145, 180), (138, 195), (152, 195)]))
+        lower_face = [(90, -40), (210, -40), (150, 60), (100, 170), (200, 170)]
+        self.assertFalse(detection(20, -160, 260, 420, 0.90, lower_face))
 
     def test_uncertain_prediction_is_returned_when_confidence_is_ambiguous(self):
         from backend import edge_app
@@ -166,7 +201,11 @@ class ScannerTest(TestCase):
             "prediction": "Uncertain",
             "confidence": 0.609,
             "region": (1, 1, 18.4),
-            "top_categories": [{"name": "Acne and Rosacea", "score": 60.9}],
+            "top_categories": [
+                {"name": "Acne and Rosacea", "score": 60.9},
+                {"name": "Eczema and Dermatitis", "score": 32.1},
+                {"name": "Infectious Skin Conditions", "score": 5.1},
+            ],
             "top_specific": [{"name": "Acne and Rosacea", "score": 54.4}],
         }
         with patch("backend.app.pred_at_edge", return_value=result):
@@ -178,13 +217,21 @@ class ScannerTest(TestCase):
         self.assertAlmostEqual(payload["score"], 60.9)
         self.assertEqual(payload["band"], "Moderate")
         self.assertIn("criteria for showing a match", payload["explanation"])
-        self.assertEqual(payload["top_categories"], [])
+        # The closest categories stay available for reference; nothing is presented as the match.
+        self.assertEqual(payload["top_categories"], result["top_categories"])
+        self.assertIn("listed for reference only", payload["explanation"])
         self.assertEqual(payload["top_specific"], [])
+        self.assertIsNone(payload["specific_condition"])
         self.assertIsNone(payload["region"])
         self.assertIn(b"No reliable match", page.data)
         self.assertIn(b"Highest model score", page.data)
+        self.assertIn(b"Closest possibilities (not a reliable match)", page.data)
+        self.assertIn(b"Eczema and Dermatitis", page.data)
         self.assertNotIn(b"Possible: Acne and Rosacea", page.data)
-        self.assertIn("Result: No reliable match", b64decode(payload["record"]["report"]).decode("utf-8"))
+        self.assertNotIn(b"Top differential possibilities", page.data)
+        report = b64decode(payload["record"]["report"]).decode("utf-8")
+        self.assertIn("Result: No reliable match", report)
+        self.assertIn("Closest categories (not a reliable match):", report)
 
     def test_accepts_all_image_file_types(self):
         from PIL import Image
@@ -313,6 +360,116 @@ class ScannerTest(TestCase):
         base = edge_app.prepare(widescreen, 128, mode="letterbox")
         diffs = np.mean(np.abs(views - base[None]), axis=(1, 2, 3))
         self.assertEqual(int(np.argmax(diffs)), 4)
+
+    def test_class_folder_labels_separate_benign_moles_from_suspicious_lesions(self):
+        from backend.taxonomy import FINE_TO_BROAD, fine_label_for_class_folder
+
+        mixed = "Melanoma Skin Cancer Nevi and Moles"
+        for name in ("malignant-melanoma-12.jpg", "lentigo-maligna-2.jpg", "atypical-nevi-dermoscopy-3.jpg"):
+            with self.subTest(name=name):
+                self.assertEqual(
+                    FINE_TO_BROAD[fine_label_for_class_folder(mixed, name)], "Malignant and Pre-Malignant Lesions"
+                )
+        for name in ("congenital-nevus-5.jpg", "halo-nevus-1.jpg", "mongolian-spot-1.jpg"):
+            with self.subTest(name=name):
+                self.assertEqual(fine_label_for_class_folder(mixed, name), "Benign Moles and Nevi")
+                self.assertEqual(FINE_TO_BROAD["Benign Moles and Nevi"], "Benign Skin Lesions")
+        self.assertEqual(
+            fine_label_for_class_folder("Light Diseases and Disorders of Pigmentation", "vitiligo-12.jpg"),
+            "Vitiligo and Depigmentation",
+        )
+        self.assertEqual(
+            fine_label_for_class_folder("Psoriasis pictures Lichen Planus and related diseases", "psoriasis-3.jpg"),
+            "Psoriasis, Lichen Planus and Related Conditions",
+        )
+        self.assertIsNone(fine_label_for_class_folder("Nail Fungus and other Nail Disease", "nail-fungus-1.jpg"))
+
+        # DermNet's viral folders mix blistering infections with warts; the filename decides.
+        warts_folder = "Warts Molluscum and other Viral Infections"
+        self.assertEqual(
+            fine_label_for_class_folder(warts_folder, "herpes-zoster-12.jpg"), "Herpes and Viral Skin Infections"
+        )
+        self.assertEqual(fine_label_for_class_folder(warts_folder, "corns-4.jpg"), "Warts, Molluscum and Viral Growths")
+        self.assertEqual(
+            fine_label_for_class_folder("Herpes HPV and other STDs Photos", "genital-warts-3.jpg"),
+            "Warts, Molluscum and Viral Growths",
+        )
+        self.assertEqual(
+            FINE_TO_BROAD[fine_label_for_class_folder("Vascular Tumors", "kaposi-sarcoma-7.jpg")],
+            "Malignant and Pre-Malignant Lesions",
+        )
+
+    def test_dataset_b_labels_move_benign_moles_out_of_the_malignant_folder(self):
+        from backend.taxonomy import labels_for_dataset_b
+
+        self.assertEqual(
+            labels_for_dataset_b("6. Malign", "congenital-nevus-5.jpg"), ("Benign Skin Lesions", "Benign Moles and Nevi")
+        )
+        for name in ("malignant-melanoma-3.jpg", "atypical-nevi-trunk-8.jpg", "basal-cell-nevus-syndrome-2.jpg"):
+            with self.subTest(name=name):
+                self.assertEqual(labels_for_dataset_b("6. Malign", name)[0], "Malignant and Pre-Malignant Lesions")
+        self.assertEqual(
+            labels_for_dataset_b("6. Malign", "ISIC_0024306.jpg"),
+            ("Malignant and Pre-Malignant Lesions", "Melanoma and Suspicious Pigmented Lesions"),
+        )
+        self.assertEqual(
+            labels_for_dataset_b("1. Enfeksiyonel", "eczema-herpeticum-9.jpg"),
+            ("Infectious Skin Conditions", "Herpes and Viral Skin Infections"),
+        )
+        self.assertEqual(labels_for_dataset_b("5. Benign", "dermatofibroma-4.jpg")[0], "Benign Skin Lesions")
+        self.assertIsNone(labels_for_dataset_b("7. Unknown", "photo.jpg"))
+
+    def test_added_dataset_labels_and_copy_grouping(self):
+        from backend.taxonomy import dataset_e_source_key, labels_for_dataset_e, labels_for_dataset_f
+
+        infectious = "Infectious Skin Conditions"
+        self.assertEqual(
+            labels_for_dataset_e("BA- cellulitis"), (infectious, "Bacterial Skin Infections (Cellulitis and Impetigo)")
+        )
+        self.assertEqual(labels_for_dataset_e("PA-cutaneous-larva-migrans"), (infectious, None))
+        self.assertIsNone(labels_for_dataset_e("Something else"))
+        # Rotated and rescaled copies of one source photo must share a key so they stay in one split.
+        self.assertEqual(
+            dataset_e_source_key("VI-shingles", "12_VI-shingles (5).jpg"),
+            dataset_e_source_key("VI-shingles", "VI-shingles (5).jpg"),
+        )
+        self.assertEqual(
+            dataset_e_source_key("FU-nail-fungus", "_12_278.jpg"), dataset_e_source_key("FU-nail-fungus", "_12_7199.jpg")
+        )
+        self.assertNotEqual(
+            dataset_e_source_key("VI-shingles", "VI-shingles (5).jpg"), dataset_e_source_key("VI-shingles", "VI-shingles (6).jpg")
+        )
+
+        benign, malignant = "Benign Skin Lesions", "Malignant and Pre-Malignant Lesions"
+        cases = {
+            ("SkinCancer", "melanoma-mimic-5.jpeg"): (benign, "Seborrheic Keratoses and Benign Growths"),
+            ("SkinCancer", "malignant-melanoma-163.jpeg"): (malignant, "Melanoma and Suspicious Pigmented Lesions"),
+            ("SkinCancer", "basal-cell-carcinoma-lid-3.jpeg"): (malignant, "Actinic Keratosis, Basal and Squamous Cell Carcinoma"),
+            ("Moles", "congenital-nevus-20.jpeg"): (benign, "Benign Moles and Nevi"),
+            ("Moles", "atypical-nevi-trunk-3.jpeg"): (malignant, "Melanoma and Suspicious Pigmented Lesions"),
+            ("Vascular_Tumors", "kaposi-sarcoma-36.jpeg"): (malignant, "Actinic Keratosis, Basal and Squamous Cell Carcinoma"),
+            ("Eczema", "05AtopicDerm1103.jpeg"): ("Eczema and Dermatitis", "Atopic Dermatitis"),
+            ("Vitiligo", "Image236.jpeg"): ("Pigmentation Disorders", "Vitiligo and Depigmentation"),
+            ("Infestations_Bites", "scabies-194.jpeg"): (infectious, None),
+        }
+        for (folder, name), expected in cases.items():
+            with self.subTest(folder=folder, name=name):
+                self.assertEqual(labels_for_dataset_f(folder, name), expected)
+        for folder, name in (("Unknown_Normal", "Image256.jpeg"), ("Bullous", "images99.jpeg"), ("Infestations_Bites", "tick-bite-13.jpeg")):
+            with self.subTest(folder=folder, name=name):
+                self.assertIsNone(labels_for_dataset_f(folder, name))
+
+    def test_manifest_fingerprint_changes_with_split_or_label(self):
+        from dataclasses import replace
+
+        from backend.train import UnifiedItem, manifest_fingerprint
+
+        base = UnifiedItem("file", "datasets/x/a.jpg", "a.jpg", "D", "clinical", "Eczema and Dermatitis", "Eczema", "ab" * 32, 1, 10, 10, 0, "train")
+        other = replace(base, rel_path="datasets/x/b.jpg", sha="cd" * 32, split="test")
+        fingerprint = manifest_fingerprint([base, other])
+        self.assertEqual(fingerprint, manifest_fingerprint([other, base]))
+        self.assertNotEqual(fingerprint, manifest_fingerprint([base, replace(other, split="val")]))
+        self.assertNotEqual(fingerprint, manifest_fingerprint([base, replace(other, fine_label="Atopic Dermatitis")]))
 
     def test_hot_reload_only_fires_when_model_signature_changes(self):
         from backend import edge_app

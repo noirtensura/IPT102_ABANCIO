@@ -113,14 +113,17 @@ def analyze_image_bytes(data: bytes, predict_fn=None, check_quality: bool = True
             reference = spec_reference
 
     if condition == "Uncertain":
+        # No category is presented as the match. The closest categories stay in the result so the page
+        # can list them for reference; the specific-condition hints are withheld.
         region_list = None
+        top_categories = top_categories[:3]
         explanation = (
             f"The highest model score was {score:.1f}%. The scores did not meet the criteria for showing a match. "
-            "A clinician can evaluate the affected area."
+            + ("The closest categories are listed for reference only. " if len(top_categories) >= 2 else "")
+            + "A clinician can evaluate the affected area."
         )
         report_evidence = explanation
         specific_condition = None
-        top_categories = []
         top_specific = []
     elif region:
         region_list = [int(region[0]), int(region[1]), float(region[2])]
@@ -151,7 +154,9 @@ def analyze_image_bytes(data: bytes, predict_fn=None, check_quality: bool = True
         )
     if top_categories:
         report_lines.append("")
-        report_lines.append("Top differential categories:")
+        report_lines.append(
+            "Closest categories (not a reliable match):" if condition == "Uncertain" else "Top differential categories:"
+        )
         for item in top_categories[:3]:
             report_lines.append(f"  - {item['name']}: {float(item['score']):.1f}%")
     if top_specific:

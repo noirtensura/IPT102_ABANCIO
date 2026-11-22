@@ -122,7 +122,7 @@ if ($analysis !== null):
 
             <?php if (count($topCategories) >= 2): ?>
             <section class="differential-strip" aria-labelledby="differential-title">
-                <h3 id="differential-title" class="differential-heading">Top differential possibilities</h3>
+                <h3 id="differential-title" class="differential-heading"><?= $hasMatch ? 'Top differential possibilities' : 'Closest possibilities (not a reliable match)' ?></h3>
                 <ol class="differential-list">
                     <?php foreach (array_slice($topCategories, 0, 3) as $item):
                         $itemName = (string) ($item['name'] ?? '');
@@ -136,6 +136,9 @@ if ($analysis !== null):
                     </li>
                     <?php endforeach; ?>
                 </ol>
+                <?php if (!$hasMatch): ?>
+                <p class="specific-hints">None of these scored high enough to count as a match. They are listed for reference only.</p>
+                <?php endif; ?>
                 <?php if (count($topSpecific) > 0): ?>
                 <p class="specific-hints"><strong>Specific visual matches:</strong>
                     <?php

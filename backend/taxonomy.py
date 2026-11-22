@@ -94,6 +94,43 @@ DATASET_B_FOLDER_TO_BROAD: dict[str, str] = {
     "6. Malignant": "Malignant and Pre-Malignant Lesions",
 }
 
+# Dataset E (Kaggle "subirbiswas19/skin-disease-dataset"): eight infection folders. Folder names are
+# compared without spaces because the archive spells one of them "BA- cellulitis". Cutaneous larva
+# migrans is a parasitic infection with no specific sub-condition here, so it carries the broad label only.
+DATASET_E_FOLDER_TO_LABELS: dict[str, tuple[str, str | None]] = {
+    "BA-cellulitis": ("Infectious Skin Conditions", "Bacterial Skin Infections (Cellulitis and Impetigo)"),
+    "BA-impetigo": ("Infectious Skin Conditions", "Bacterial Skin Infections (Cellulitis and Impetigo)"),
+    "FU-athlete-foot": ("Infectious Skin Conditions", "Tinea, Ringworm and Fungal Infections"),
+    "FU-nail-fungus": ("Infectious Skin Conditions", "Tinea, Ringworm and Fungal Infections"),
+    "FU-ringworm": ("Infectious Skin Conditions", "Tinea, Ringworm and Fungal Infections"),
+    "PA-cutaneous-larva-migrans": ("Infectious Skin Conditions", None),
+    "VI-chickenpox": ("Infectious Skin Conditions", "Herpes and Viral Skin Infections"),
+    "VI-shingles": ("Infectious Skin Conditions", "Herpes and Viral Skin Infections"),
+}
+
+# Dataset F (Kaggle "pacificrm/skindiseasedataset"): 22 class folders, mostly DermNet photos under
+# shorter folder names. A folder listed here is labelled exactly like the DermNet folder it mirrors, so
+# the filename corrections above apply to it too. Eczema, Moles, SkinCancer, Vitiligo, and
+# Infestations_Bites need their own rules (see labels_for_dataset_f). Bullous (no blistering-disease
+# category) and Unknown_Normal (random non-skin pictures) are left out.
+DATASET_F_FOLDER_TO_DERMNET: dict[str, str] = {
+    "Acne": "Acne and Rosacea Photos",
+    "Rosacea": "Acne and Rosacea Photos",
+    "Actinic_Keratosis": "Actinic Keratosis Basal Cell Carcinoma and other Malignant Lesions",
+    "Benign_tumors": "Seborrheic Keratoses and other Benign Tumors",
+    "Seborrh_Keratoses": "Seborrheic Keratoses and other Benign Tumors",
+    "Candidiasis": "Tinea Ringworm Candidiasis and other Fungal Infections",
+    "Tinea": "Tinea Ringworm Candidiasis and other Fungal Infections",
+    "DrugEruption": "Exanthems and Drug Eruptions",
+    "Lichen": "Psoriasis pictures Lichen Planus and related diseases",
+    "Psoriasis": "Psoriasis pictures Lichen Planus and related diseases",
+    "Lupus": "Lupus and other Connective Tissue diseases",
+    "Sun_Sunlight_Damage": "Light Diseases and Disorders of Pigmentation",
+    "Vascular_Tumors": "Vascular Tumors",
+    "Vasculitis": "Vasculitis Photos",
+    "Warts": "Warts Molluscum and other Viral Infections",
+}
+
 FOLDER_ALIASES: tuple[tuple[str, str], ...] = (
     ("/1. Enfeksiyonel/", "/1. Infectious/"),
     ("/2. Ekzama/", "/2. Eczema/"),
@@ -114,7 +151,10 @@ _SLUG_RULES: dict[str, tuple[tuple[re.Pattern[str], str], ...]] = {
             "Warts, Molluscum and Viral Growths",
         ),
         (
-            re.compile(r"(herpes|zoster|shingles|varicella|syphilis|chancroid)"),
+            re.compile(
+                r"(herpes|herpet|zoster|shingles|varicella|chicken-?pox|chickpox|small-pox|monkey-pox"
+                r"|hand-foot-mouth|syphilis|chancroid)"
+            ),
             "Herpes and Viral Skin Infections",
         ),
         (
@@ -191,6 +231,115 @@ def infer_fine_label_from_filename(broad_label: str, filename: str) -> str | Non
         if pattern.search(low):
             return fine_label
     return None
+
+
+# --------------------------------------------------------------------------- Class-folder label corrections
+# Bump when the rules below (or _SLUG_RULES) change, so cached dataset audits are rebuilt.
+LABEL_RULES_VERSION = 2
+
+# DermNet files every "nevi and moles" photo next to melanoma, and the 6-class dataset copies that
+# folder into its malignant class. Ordinary benign moles (congenital, halo, blue, Becker, and Spitz
+# nevi) are told apart from melanoma and atypical nevi by their DermNet filename.
+_MIXED_PIGMENTED_FOLDER = "Melanoma Skin Cancer Nevi and Moles"
+_SUSPICIOUS_PIGMENTED = re.compile(r"(melanoma|atypical-nevi|dysplastic|lentigo-maligna)")
+_OTHER_MALIGNANT = re.compile(r"(basal-cell|squamous-cell|carcinoma|bowen|ctcl|metastasis)")
+_BENIGN_PIGMENTED = re.compile(r"(nevus|nevi|mongolian-spot|melanotic-macule)")
+
+# DermNet's two viral folders each mix herpes-type blistering infections with warts and molluscum.
+_VIRAL_FOLDERS = ("Warts Molluscum and other Viral Infections", "Herpes HPV and other STDs Photos")
+_VIRAL_LABELS = ("Warts, Molluscum and Viral Growths", "Herpes and Viral Skin Infections")
+
+
+def _is_benign_mole(filename: str) -> bool:
+    low = filename.lower()
+    if low.startswith("isic_") or _SUSPICIOUS_PIGMENTED.search(low) or _OTHER_MALIGNANT.search(low):
+        return False
+    return bool(_BENIGN_PIGMENTED.search(low))
+
+
+def fine_label_for_class_folder(folder: str, filename: str) -> str | None:
+    """Specific sub-condition for a photo in a DermNet-style class folder (Datasets A and D)."""
+    fine = DATASET_A_FOLDER_TO_FINE.get(folder)
+    if fine is None:
+        return None
+    low = filename.lower()
+    if folder == _MIXED_PIGMENTED_FOLDER and _is_benign_mole(filename):
+        return "Benign Moles and Nevi"
+    if folder in _VIRAL_FOLDERS:
+        inferred = infer_fine_label_from_filename("Infectious Skin Conditions", filename)
+        return inferred if inferred in _VIRAL_LABELS else fine
+    if folder == "Vascular Tumors" and "kaposi" in low:
+        # Kaposi sarcoma is a malignant vascular tumour; it joins the other non-melanoma cancers.
+        return "Actinic Keratosis, Basal and Squamous Cell Carcinoma"
+    if FINE_TO_BROAD[fine] == "Pigmentation Disorders":
+        return infer_fine_label_from_filename("Pigmentation Disorders", filename) or fine
+    return fine
+
+
+def labels_for_dataset_b(folder: str, filename: str) -> tuple[str, str | None] | None:
+    """(broad category, specific sub-condition or None) for a photo in a 6-class Dataset B folder."""
+    broad = DATASET_B_FOLDER_TO_BROAD.get(folder)
+    if broad is None:
+        return None
+    if broad == "Malignant and Pre-Malignant Lesions" and _is_benign_mole(filename):
+        return "Benign Skin Lesions", "Benign Moles and Nevi"
+    return broad, infer_fine_label_from_filename(broad, filename)
+
+
+def labels_for_dataset_e(folder: str) -> tuple[str, str | None] | None:
+    """(broad category, specific sub-condition or None) for a Dataset E class folder."""
+    return DATASET_E_FOLDER_TO_LABELS.get(folder.replace(" ", ""))
+
+
+# Infestations and infections in Dataset F's "Infestations_Bites" folder. Bites and stings in the same
+# folder are not infections and have no category here.
+_F_INFESTATION = re.compile(r"(scabies|larva-mig|lice|pediculosis|leishmaniasis|myiasis|lyme|cat-scratch|rocky-mountain)")
+
+
+def labels_for_dataset_f(folder: str, filename: str) -> tuple[str, str | None] | None:
+    """(broad category, specific sub-condition or None) for a Dataset F photo; None when it has no category."""
+    low = filename.lower()
+    if folder in DATASET_F_FOLDER_TO_DERMNET:
+        fine = fine_label_for_class_folder(DATASET_F_FOLDER_TO_DERMNET[folder], filename)
+        return FINE_TO_BROAD[fine], fine
+    if folder == "Eczema":
+        broad = "Eczema and Dermatitis"
+        return broad, infer_fine_label_from_filename(broad, filename) or "Eczema"
+    if folder == "Moles":
+        # Atypical nevi and lentigo maligna are filed with the moles; DermNet treats them as suspicious.
+        if _SUSPICIOUS_PIGMENTED.search(low) or _OTHER_MALIGNANT.search(low):
+            return "Malignant and Pre-Malignant Lesions", "Melanoma and Suspicious Pigmented Lesions"
+        return "Benign Skin Lesions", "Benign Moles and Nevi"
+    if folder == "SkinCancer":
+        if "melanoma-mimic" in low:
+            # Benign look-alikes; DermNet files the same photos under its benign tumours.
+            return "Benign Skin Lesions", "Seborrheic Keratoses and Benign Growths"
+        broad = "Malignant and Pre-Malignant Lesions"
+        return broad, infer_fine_label_from_filename(broad, filename)
+    if folder == "Vitiligo":
+        return "Pigmentation Disorders", "Vitiligo and Depigmentation"
+    if folder == "Infestations_Bites" and _F_INFESTATION.search(low):
+        return "Infectious Skin Conditions", None
+    return None
+
+
+_E_KERAS_COPY = re.compile(r"^_(\d+)_\d+\.[a-z]+$")
+_E_NUMBERED_COPY = re.compile(r"^\d+_(.+)$")
+
+
+def dataset_e_source_key(folder: str, filename: str) -> str:
+    """Name shared by every copy of one Dataset E source photo.
+
+    The archive stores rotated and rescaled copies next to the originals: "12_VI-shingles (5).jpg" is
+    a copy of "VI-shingles (5).jpg", and Keras-style "_12_7199.jpg" is a copy of source photo 12.
+    Copies of one source must stay in the same split.
+    """
+    name = filename.lower()
+    if match := _E_KERAS_COPY.match(name):
+        return f"{folder}/keras-{match.group(1)}"
+    if match := _E_NUMBERED_COPY.match(name):
+        return f"{folder}/{match.group(1)}"
+    return f"{folder}/{name}"
 
 
 def normalize_stem_group(filename: str) -> str:

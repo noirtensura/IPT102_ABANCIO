@@ -1,2 +1,10 @@
 -r requirements.txt
 tensorflow-cpu==2.21.0
+scikit-learn==1.9.1
+scipy==1.18.1
+# Only used to export the DINOv2 / SigLIP backbones (backend/experiments/vit_backbones.py).
+# For the small CPU-only build, install these two first:
+#   pip install torch==2.15.0 torchvision==0.29.2 --index-url https://download.pytorch.org/whl/cpu
+torch==2.15.0
+torchvision==0.29.2
+timm==1.0.31

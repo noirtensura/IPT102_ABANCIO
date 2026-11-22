@@ -54,7 +54,7 @@
 
             {% if top_categories and top_categories|length >= 2 %}
             <section class="differential-strip" aria-labelledby="differential-title">
-                <h3 id="differential-title" class="differential-heading">Top differential possibilities</h3>
+                <h3 id="differential-title" class="differential-heading">{{ 'Closest possibilities (not a reliable match)' if prediction == 'Uncertain' else 'Top differential possibilities' }}</h3>
                 <ol class="differential-list">
                     {% for item in top_categories[:3] %}
                     <li class="differential-item">
@@ -64,6 +64,9 @@
                     </li>
                     {% endfor %}
                 </ol>
+                {% if prediction == 'Uncertain' %}
+                <p class="specific-hints">None of these scored high enough to count as a match. They are listed for reference only.</p>
+                {% endif %}
                 {% if top_specific %}
                 <p class="specific-hints"><strong>Specific visual matches:</strong>
                     {% for spec in top_specific[:3] %}{{ spec.name }} ({{ '%.1f'|format(spec.score) }}%){% if not loop.last %} · {% endif %}{% endfor %}

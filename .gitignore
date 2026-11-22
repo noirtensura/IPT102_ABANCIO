@@ -6,3 +6,4 @@ train/
 val/
 test/
 build/
+*.code-workspace
